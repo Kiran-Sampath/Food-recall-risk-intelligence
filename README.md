@@ -40,6 +40,27 @@ python src/transformations/build_gold_tables.py
 streamlit run dashboard/app.py
 ```
 
+Deployment
+
+The dashboard is designed to deploy on Streamlit Community Cloud with Supabase as the persistent database.
+
+1. Push this repo to GitHub.
+2. In Streamlit Community Cloud, create a new app from `dashboard/app.py`.
+3. Add these app secrets:
+
+```toml
+SUPABASE_URL = "https://your-project-ref.supabase.co"
+SUPABASE_ANON_KEY = "your-anon-key"
+```
+
+Do not add `SUPABASE_SERVICE_ROLE_KEY` to the public dashboard deployment. Use the service role key only in local/Docker/GitHub Actions pipeline jobs that load data.
+
+To refresh Supabase locally with the last-five-years dataset:
+
+```bash
+docker run --rm --env-file .env -v "${PWD}:/app" -w /app food-recall-risk-intelligence-dashboard:latest python scripts/run_pipeline.py --complete-download --filter-report-start 2021-06-01 --filter-report-end 2026-06-01 --load-supabase --replace-supabase
+```
+
 Project layout
 
 - `data/` — Bronze/Silver/Gold artifacts (not checked into git)

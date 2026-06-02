@@ -13,12 +13,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.ingestion.extract_openfda import fetch_and_save
-from src.quality.data_quality_checks import run_data_quality
-from src.scoring.calculate_risk_score import calculate_risk
-from src.transformations.bronze_to_silver import bronze_to_silver
-from src.transformations.build_gold_tables import build_gold
-
 try:
     import duckdb
 except ImportError:
@@ -27,6 +21,7 @@ except ImportError:
 
 st.set_page_config(page_title="Food Recall Risk Intelligence", layout="wide", initial_sidebar_state="collapsed")
 px.defaults.template = "plotly_dark"
+ENABLE_LOCAL_REFRESH = os.environ.get("ENABLE_LOCAL_REFRESH") == "1"
 
 
 @st.cache_data
@@ -231,6 +226,12 @@ def themed_chart(fig):
 
 
 def refresh_pipeline(limit, start_date=None, end_date=None):
+    from src.ingestion.extract_openfda import fetch_and_save
+    from src.quality.data_quality_checks import run_data_quality
+    from src.scoring.calculate_risk_score import calculate_risk
+    from src.transformations.bronze_to_silver import bronze_to_silver
+    from src.transformations.build_gold_tables import build_gold
+
     bronze_path = fetch_and_save(
         limit=limit,
         page_size=100,
@@ -421,32 +422,33 @@ with preset_col:
         label_visibility="collapsed",
     )
 
-with st.expander("Refresh FDA Data", expanded=False):
-    refresh_col1, refresh_col2, refresh_col3, refresh_col4 = st.columns([1, 1, 1, 0.8])
-    with refresh_col1:
-        refresh_limit = st.number_input("Records", min_value=1, max_value=5000, value=500, step=100)
-    with refresh_col2:
-        refresh_start = st.date_input("Report Start", value=None)
-    with refresh_col3:
-        refresh_end = st.date_input("Report End", value=None)
-    with refresh_col4:
-        st.write("")
-        st.write("")
-        refresh_clicked = st.button("Run Refresh", type="primary", width="stretch")
+if ENABLE_LOCAL_REFRESH:
+    with st.expander("Refresh FDA Data", expanded=False):
+        refresh_col1, refresh_col2, refresh_col3, refresh_col4 = st.columns([1, 1, 1, 0.8])
+        with refresh_col1:
+            refresh_limit = st.number_input("Records", min_value=1, max_value=5000, value=500, step=100)
+        with refresh_col2:
+            refresh_start = st.date_input("Report Start", value=None)
+        with refresh_col3:
+            refresh_end = st.date_input("Report End", value=None)
+        with refresh_col4:
+            st.write("")
+            st.write("")
+            refresh_clicked = st.button("Run Refresh", type="primary", width="stretch")
 
-    if refresh_clicked:
-        try:
-            with st.spinner("Fetching openFDA data and rebuilding pipeline outputs..."):
-                bronze_path = refresh_pipeline(int(refresh_limit), refresh_start, refresh_end)
-                st.cache_data.clear()
-            st.success(f"Refresh complete. New bronze file: {bronze_path}")
-            with open(bronze_path, "r", encoding="utf-8") as fh:
-                refresh_meta = json.load(fh).get("meta", {})
-            if refresh_meta.get("warning"):
-                st.warning(refresh_meta["warning"])
-            st.rerun()
-        except Exception as err:
-            st.error(f"Refresh failed: {err}")
+        if refresh_clicked:
+            try:
+                with st.spinner("Fetching openFDA data and rebuilding pipeline outputs..."):
+                    bronze_path = refresh_pipeline(int(refresh_limit), refresh_start, refresh_end)
+                    st.cache_data.clear()
+                st.success(f"Refresh complete. New bronze file: {bronze_path}")
+                with open(bronze_path, "r", encoding="utf-8") as fh:
+                    refresh_meta = json.load(fh).get("meta", {})
+                if refresh_meta.get("warning"):
+                    st.warning(refresh_meta["warning"])
+                st.rerun()
+            except Exception as err:
+                st.error(f"Refresh failed: {err}")
 
 if not risk_df.empty and "recall_initiation_date" in risk_df.columns and risk_df["recall_initiation_date"].notna().any():
     min_date = risk_df["recall_initiation_date"].min().date()
