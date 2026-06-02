@@ -90,6 +90,43 @@ def normalize_dates(df):
     return df
 
 
+def build_data_quality_report(df):
+    if df.empty:
+        return pd.DataFrame()
+
+    checks = []
+
+    def add_check(metric, value, status="OK"):
+        checks.append({"metric": metric, "value": value, "status": status})
+
+    add_check("Records checked", len(df))
+
+    for label, column in [
+        ("Missing recall number", "recall_number"),
+        ("Missing classification", "classification"),
+        ("Missing reason", "reason_for_recall"),
+        ("Missing recalling firm", "recalling_firm"),
+        ("Missing report date", "report_date"),
+    ]:
+        if column in df.columns:
+            missing_count = int(df[column].isna().sum())
+            add_check(label, missing_count, "Review" if missing_count else "OK")
+
+    if "recall_number" in df.columns:
+        duplicate_count = int(df["recall_number"].dropna().duplicated().sum())
+        add_check("Duplicate recall numbers", duplicate_count, "Review" if duplicate_count else "OK")
+
+    if "report_date" in df.columns and df["report_date"].notna().any():
+        add_check("Earliest report date", df["report_date"].min().strftime("%Y-%m-%d"))
+        add_check("Latest report date", df["report_date"].max().strftime("%Y-%m-%d"))
+
+    if "risk_score" in df.columns:
+        invalid_scores = int(df["risk_score"].isna().sum() + (~df["risk_score"].between(0, 100, inclusive="both")).sum())
+        add_check("Missing or invalid risk scores", invalid_scores, "Review" if invalid_scores else "OK")
+
+    return pd.DataFrame(checks)
+
+
 def text_search(df, query):
     if not query or df.empty:
         return df
@@ -267,6 +304,9 @@ if "product_category" not in risk_df.columns:
     risk_df["product_category"] = "Unknown"
 if "distribution_scope" not in risk_df.columns:
     risk_df["distribution_scope"] = "Unknown"
+
+if dq_df.empty:
+    dq_df = build_data_quality_report(risk_df)
 
 st.markdown(
     """
