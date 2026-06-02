@@ -25,7 +25,6 @@ def fetch_and_save(
 ):
     url = "https://api.fda.gov/food/enforcement.json"
     search = _build_search(date_field, start_date, end_date)
-    fallback_warning = None
 
     def fetch_batches(active_search: str | None):
         fetched = []
@@ -46,16 +45,7 @@ def fetch_and_save(
                 break
         return fetched
 
-    try:
-        results = fetch_batches(search)
-    except requests.HTTPError as err:
-        status_code = err.response.status_code if err.response is not None else None
-        if search and status_code and status_code >= 500:
-            fallback_warning = f"openFDA returned HTTP {status_code} for search '{search}'. Retried without date filter."
-            results = fetch_batches(None)
-            search = None
-        else:
-            raise
+    results = fetch_batches(search)
 
     data = {
         "meta": {
@@ -64,7 +54,7 @@ def fetch_and_save(
             "requested_limit": limit,
             "records_fetched": len(results),
             "search": search,
-            "warning": fallback_warning,
+            "warning": None,
         },
         "results": results,
     }

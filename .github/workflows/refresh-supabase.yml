@@ -5,9 +5,10 @@ on:
     - cron: "30 8 * * *"
   workflow_dispatch:
     inputs:
-      report_date:
-        description: "Report date to fetch in YYYY-MM-DD format. Defaults to yesterday UTC."
+      lookback_days:
+        description: "Number of report-date days to refresh."
         required: false
+        default: "14"
         type: string
 
 jobs:
@@ -19,7 +20,7 @@ jobs:
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-      REQUESTED_REPORT_DATE: ${{ inputs.report_date }}
+      LOOKBACK_DAYS: ${{ inputs.lookback_days }}
 
     steps:
       - name: Check out repository
@@ -30,17 +31,19 @@ jobs:
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
 
-      - name: Compute report date
+      - name: Compute report-date window
         id: dates
         run: |
           python - <<'PY' >> "$GITHUB_OUTPUT"
           import os
           from datetime import date, timedelta
 
-          requested = os.environ.get("REQUESTED_REPORT_DATE", "").strip()
-          target = requested or (date.today() - timedelta(days=1)).isoformat()
+          lookback_days = int(os.environ.get("LOOKBACK_DAYS") or "14")
+          end = date.today() - timedelta(days=1)
+          start = end - timedelta(days=max(lookback_days - 1, 0))
 
-          print(f"report_date={target}")
+          print(f"start={start.isoformat()}")
+          print(f"end={end.isoformat()}")
           PY
 
       - name: Build pipeline image
@@ -53,8 +56,8 @@ jobs:
             -e SUPABASE_SERVICE_ROLE_KEY \
             food-recall-risk-intelligence \
             python scripts/run_pipeline.py \
-              --limit 5000 \
-              --start-date "${{ steps.dates.outputs.report_date }}" \
-              --end-date "${{ steps.dates.outputs.report_date }}" \
+              --complete-download \
+              --filter-report-start "${{ steps.dates.outputs.start }}" \
+              --filter-report-end "${{ steps.dates.outputs.end }}" \
               --load-supabase \
               --supabase-tables recalls

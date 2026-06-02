@@ -63,7 +63,7 @@ docker run --rm --env-file .env -v "${PWD}:/app" -w /app food-recall-risk-intell
 
 Scheduled refresh
 
-The GitHub Actions workflow at `.github/workflows/refresh-supabase.yml` runs daily at 08:30 UTC. By default, it fetches records for yesterday's FDA `report_date`, scores them, and upserts them into the `recalls` table. It can also be run manually from the GitHub Actions tab with a specific `report_date` for backfills.
+The GitHub Actions workflow at `.github/workflows/refresh-supabase.yml` runs daily at 08:30 UTC. By default, it downloads the complete openFDA export, keeps a rolling 14-day FDA `report_date` window, scores those records, and upserts them into the `recalls` table. It can also be run manually from the GitHub Actions tab with a custom `lookback_days` value for backfills.
 
 Add these repository secrets in GitHub before running it:
 
@@ -72,7 +72,7 @@ SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 ```
 
-The daily job is incremental and does not replace the database. Full historical rebuilds should be run deliberately with `--complete-download`, a report-date window, and `--replace-supabase`.
+The daily job is incremental and does not replace the database. Using a rolling lookback catches late-arriving or corrected records without reloading all five years every day. Full historical rebuilds should be run deliberately with `--complete-download`, a report-date window, and `--replace-supabase`.
 
 Project layout
 
