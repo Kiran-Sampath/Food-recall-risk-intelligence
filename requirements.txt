@@ -1,0 +1,7 @@
+requests
+pyspark
+pandas
+duckdb
+streamlit
+plotly
+pytest
