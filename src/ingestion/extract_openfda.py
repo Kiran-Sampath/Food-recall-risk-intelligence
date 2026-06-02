@@ -36,6 +36,8 @@ def fetch_and_save(
                 params["search"] = active_search
 
             resp = requests.get(url, params=params, timeout=30)
+            if resp.status_code == 404:
+                return fetched
             resp.raise_for_status()
             payload = resp.json()
             batch = payload.get("results", [])

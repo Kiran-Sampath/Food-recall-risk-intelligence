@@ -67,6 +67,7 @@ def run_pipeline(
     filter_report_start=None,
     filter_report_end=None,
     replace_supabase=False,
+    supabase_tables=None,
 ):
     if bronze_path:
         input_path = bronze_path
@@ -74,6 +75,26 @@ def run_pipeline(
         input_path = fetch_complete_download()
     else:
         input_path = fetch_and_save(limit=limit, start_date=start_date, end_date=end_date)
+
+    meta = {}
+    input_file = Path(input_path)
+    if input_file.exists():
+        with input_file.open("r", encoding="utf-8") as fh:
+            meta = json.load(fh).get("meta", {})
+
+    if meta.get("records_fetched") == 0:
+        if load_supabase:
+            load_pipeline_run(input_path, {}, status="success")
+        print(
+            {
+                "status": "success",
+                "bronze_path": input_path,
+                "records_fetched": 0,
+                "supabase_loaded": {},
+                "warning": "No records found for requested date window.",
+            }
+        )
+        return
 
     bronze_to_silver(input_path, "data/silver/food_recalls")
     filter_parquet_by_report_date(
@@ -87,14 +108,8 @@ def run_pipeline(
     build_gold("data/gold/food_recall_risk_scores", "data/gold")
     loaded_counts = {}
     if load_supabase:
-        loaded_counts = load_tables(replace=replace_supabase)
+        loaded_counts = load_tables(table_names=supabase_tables, replace=replace_supabase)
         load_pipeline_run(input_path, loaded_counts)
-
-    meta = {}
-    input_file = Path(input_path)
-    if input_file.exists():
-        with input_file.open("r", encoding="utf-8") as fh:
-            meta = json.load(fh).get("meta", {})
 
     print(
         {
@@ -118,6 +133,7 @@ def main():
     parser.add_argument("--filter-report-start", type=str, default=None)
     parser.add_argument("--filter-report-end", type=str, default=None)
     parser.add_argument("--replace-supabase", action="store_true")
+    parser.add_argument("--supabase-tables", nargs="*", default=None)
     args = parser.parse_args()
 
     run_pipeline(
@@ -130,6 +146,7 @@ def main():
         filter_report_start=args.filter_report_start,
         filter_report_end=args.filter_report_end,
         replace_supabase=args.replace_supabase,
+        supabase_tables=args.supabase_tables,
     )
 
 

@@ -61,6 +61,19 @@ To refresh Supabase locally with the last-five-years dataset:
 docker run --rm --env-file .env -v "${PWD}:/app" -w /app food-recall-risk-intelligence-dashboard:latest python scripts/run_pipeline.py --complete-download --filter-report-start 2021-06-01 --filter-report-end 2026-06-01 --load-supabase --replace-supabase
 ```
 
+Scheduled refresh
+
+The GitHub Actions workflow at `.github/workflows/refresh-supabase.yml` runs daily at 08:30 UTC. By default, it fetches records for yesterday's FDA `report_date`, scores them, and upserts them into the `recalls` table. It can also be run manually from the GitHub Actions tab with a specific `report_date` for backfills.
+
+Add these repository secrets in GitHub before running it:
+
+```text
+SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+The daily job is incremental and does not replace the database. Full historical rebuilds should be run deliberately with `--complete-download`, a report-date window, and `--replace-supabase`.
+
 Project layout
 
 - `data/` — Bronze/Silver/Gold artifacts (not checked into git)
